@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[project]
+name = "ffpolish"
+version = "0.0.2"
+description = "Filters Artifacts From Formalin-Fixed Paraffin-Embedded (FFPE) Variants."
+requires-python = ">=3.10"
+license = {file = "LICENSE.md"}
+authors = [
+    {name = "Ryan D Morin Laboratory"},
+    {name = "Jon Deans", email = "jrdeans@gmail.com"},
+]
+readme = "README.md"
+dependencies = [
+    "loguru",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy==1.9.0",
+    "pytest==8.1.1",
+    "ruff==0.3.2"
+]
+
+[project.urls]
+repository = "https://github.com/jondeans/FFPolish"
+
+[tool.pytest.ini_options]
+addopts = "-r A -v -s --import-mode=importlib --doctest-modules"
+python_files =[
+    "test_*.py",
+    "check_*.py",
+    "example_*.py"
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
