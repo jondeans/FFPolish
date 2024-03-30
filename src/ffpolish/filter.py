@@ -29,8 +29,11 @@ def vcf2bed(vcf: Union[str, Path]):
             if line.startswith("#"):
                 continue
             (chr, start, name, span) = line.strip().split("\t")
-            print(f"{chr=} {start=} {name=} {span=}")
-
+            start -= start
+            span = len(span)
+            end = start + span
+            logger.info(f"{chr=} {start=} {name=} {span=} {end=}")
+            print("\t".join([chr, start, end, name]))
 
 def filter(ref: Union[str, Path], vcf: Union[str, Path], bam: Union[str, Path], outdir: Union[str, Path], prefix: Union[str, Path], retrain: bool = False, grid_search: bool = True, cores: int = 1, seed: int = 24159):
     """"""
