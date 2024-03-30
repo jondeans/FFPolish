@@ -1,36 +1,51 @@
-#!/usr/bin/env python
+"""Filter"""
+
+from importlib import resources
+from pathlib import Path
+from typing import Union
 
 import os
-import pandas as pd 
-import numpy as np
-import logging
-import deepsvr_utils as dp
+import pandas as pd
+from . import models
+from . import deepsvr_utils as dp
 import joblib
 import gzip
-import pdb
-import vaex
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import GridSearchCV
 
-BASE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+from loguru import logger
 
-def filter(ref, vcf, bam, outdir, prefix, retrain, grid_search, cores, seed, loglevel):
-    logging.basicConfig(level=loglevel,
-                        format='%(asctime)s (%(relativeCreated)d ms) -> %(levelname)s: %(message)s',
-                        datefmt='%I:%M:%S %p')
 
-    logger = logging.getLogger()
-    logger.info('Running FFPolish prediction')
+def vcf2bed(vcf: Union[str, Path]):
+    """Convert vcf file to bed"""
+
+    if isinstance(vcf, str):
+        vcf = Path(vcf)
+
+    with vcf.open() as f:
+        for line in f:
+            if line.startswith("#"):
+                continue
+            (chr, start, name, span) = line.strip().split("\t")
+            print(f"{chr=} {start=} {name=} {span=}")
+
+
+def filter(ref: Union[str, Path], vcf: Union[str, Path], bam: Union[str, Path], outdir: Union[str, Path], prefix: Union[str, Path], retrain: bool = False, grid_search: bool = True, cores: int = 1, seed: int = 24159):
+    """"""
+
+    logger.info("Running FFPolish prediction")
 
     if not prefix:
-        prefix = os.path.basename(os.path.join(outdir, bam.split('.')[0]))
+        prefix = bam.stem
     
     if retrain:
-        orig_train_df = vaex.open(os.path.join(BASE, 'orig_train.hdf5'))
-        train_features = orig_train_df.get_column_names(regex='tumor')
-        new_train_df = vaex.open(retrain)
+        orig_train_df = pd.read_hdf("orig_train.hdf5")
+        # OLD CODE
+        # orig_train_df = vaex.open(os.path.join(BASE, 'orig_train.hdf5'))
+        # train_features = orig_train_df.get_column_names(regex='tumor')
+        # new_train_df = vaex.open(retrain)
 
         orig_train_df = orig_train_df.to_pandas_df(train_features + ['real'])
         new_train_df = new_train_df.to_pandas_df(train_features + ['real'])
@@ -58,17 +73,16 @@ def filter(ref, vcf, bam, outdir, prefix, retrain, grid_search, cores, seed, log
         else:
             logger.info('Training using previous optimized parameters')
             clf.fit(X, y)
-
     else:
-        clf = joblib.load(os.path.join(BASE, 'models', 'trained.clf'))
-        scaler = joblib.load(os.path.join(BASE, 'models', 'trained.scaler'))
+        clf = joblib.load(resources.files(models) / "trained.clf")
+        scaler = joblib.load(resources.files(models) / "trained.scaler")
 
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
+    if not outdir.exists():
+        outdir.mkdir(parents=True)
 
     logger.info('Converting VCF to bed file')
-    bed_file_path = os.path.join(outdir, prefix) + '.bed'
-    os.system('zcat {} | grep PASS | vcf2bed | cut -f 1-3,6-7 > {}'.format(vcf, bed_file_path))
+    bed_file_path = outdir / prefix.with_suffix(".bed")
+    os.system(f"zcat {vcf} | grep PASS | vcf2bed | cut -f 1-3,6-7 > {bed_file_path}")
     
     logger.info('Preparing data')
     prep_data = dp.PrepareData(prefix, bam, bed_file_path, ref, outdir)

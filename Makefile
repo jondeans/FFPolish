@@ -29,9 +29,9 @@ clean: venv
 
 .PHONY: fix
 fix: venv
-	ruff src/ tests/
+	ruff check --fix src/ tests/
 	ruff format src/ tests/
 
 .PHONY: test
 test: venv
-	$(PYTHON) -m pytest tests
+	$(VENV_PYTHON) -m pytest tests

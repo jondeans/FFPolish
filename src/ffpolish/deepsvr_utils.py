@@ -1,53 +1,37 @@
+""""""
+
+from pathlib import Path
+from typing import Union
+
 import os
 import re
 import numpy as np
 import pandas as pd
 import pysam
-import itertools
-from sklearn import preprocessing
-from zero_one_based_conversion import convert
-
-# Title: String to numeric
-# Author: javier http://stackoverflow.com/users/11649/javier
-# Source: http://stackoverflow.com/a/379966
-# License: MIT
-def to_numeric(s):
-    """Convert string to int or float
-
-    Args:
-        s (str): string to be converted to numeric
-
-    Returns:
-        int or float
-    """
-    try:
-        return int(s)
-    except ValueError:
-        return float(s)
-
-BASE_METRICS = ['count', 'avg_mapping_quality', 'avg_basequality',
-                'avg_se_mapping_quality', 'num_plus_strand',
-                'num_minus_strand', 'avg_pos_as_fraction',
-                'avg_num_mismaches_as_fraction', 'avg_sum_mismatch_qualities',
-                'num_q2_containing_reads',
-                'avg_distance_to_q2_start_in_q2_reads',
-                'avg_clipped_length', 'avg_distance_to_effective_3p_end', 
-                'avg_distance_to_effective_5p_end']
 
 
-# Title: PrepareData and ReadCount from DeepSVR
-# Author: Griffith Lab
-# Source: https://github.com/griffithlab/DeepSVR
-# License: MIT
+BASE_METRICS = [
+    'count', 'avg_mapping_quality', 'avg_basequality',
+    'avg_se_mapping_quality', 'num_plus_strand',
+    'num_minus_strand', 'avg_pos_as_fraction',
+    'avg_num_mismaches_as_fraction', 'avg_sum_mismatch_qualities',
+    'num_q2_containing_reads',
+    'avg_distance_to_q2_start_in_q2_reads',
+    'avg_clipped_length', 'avg_distance_to_effective_3p_end',
+    'avg_distance_to_effective_5p_end'
+]
+
+
 class ReadCount:
     """Parse bam-readcount out into dict or pandas.DataFrame"""
 
-    def __init__(self, file_path):
-        """Initialize dict of bam-readcount file.
+    def __init__(self, file_path: Union[str, Path]):
+        """Initialize dict of BAM ReadCount file.
 
         Args:
-            file_path (str): File path of bam-readcount file
+            file_path: Filepath of BAM ReadCount file.
         """
+
         self.read_count_dict = self._parse(file_path)
         self.read_count_df = pd.DataFrame()
 
@@ -74,7 +58,7 @@ class ReadCount:
                 metrics['depth'] = int(count[3])
                 bases = {}
                 for i in range(4, len(count), 15):
-                    b = list(map(to_numeric, count[i + 1: i + 15]))
+                    # b = list(map(to_numeric, count[i + 1: i + 15]))
                     # if not all(x == 0 for x in b):
                     if count[i] != '=':
                         bases[count[i]] = dict(zip(BASE_METRICS, b))
@@ -82,18 +66,17 @@ class ReadCount:
                 counts[position] = metrics
         return counts
 
-    def compute_variant_metrics(self, var_bed_file_path,
-                                sample_prepend_string):
-        """
+    def compute_variant_metrics(self, var_bed_file_path: Union[str, Path], sample_prepend_string: Union[str, Path]):
+        """Compute variant metrics.
 
         Args:
-            var_bed_file_path (str): filepath to bed file indicating variants
-            sample_prepend_string (str): Column name to prepend sample e.g.
-                                         tumor
+            var_bed_file_path: filepath to bed file indicating variants
+            sample_prepend_string: Column name to prepend sample, e.g. tumor
 
         Returns:
-             pandas.Dataframe of variant centric read count data
+             pd.Dataframe of variant centric read count data
         """
+
         self.bam_readcount_keys = list(self.read_count_dict.keys())
         if len(self.read_count_df) > 0:
             return self.read_count_df
@@ -208,15 +191,14 @@ class ReadCount:
         self.validate_bam_readcount_output(bed_file_header, var_bed_file_path)
         return self.read_count_df
 
-    def validate_bam_readcount_output(self, bed_file_header,
-                                      var_bed_file_path):
-        """Determine if provided bed file and bam-readcount output return the
-        same number of variants
+    def validate_bam_readcount_output(self, var_bed_file_path: Union[str, Path], bed_file_header: bool = True):
+        """Determine if provided bed file and bam-readcount output return the same number of variants
 
             Args:
-                bed_file_header (bool): Specify if bed file has header
-                var_bed_file_path (str): File path of bed file
+                var_bed_file_path: File path of bed file
+                bed_file_header: Specify if bed file has header
         """
+
         # Remove duplicated calls from bed files an check that the correct
         # number of variants were counted by bam-readcount
         if bed_file_header:
@@ -239,27 +221,30 @@ class ReadCount:
                 'Count and bed files return different number of variants')
 
     def remove_extra_indel_counts(self, chromosome, start, stop):
+        """Remove extra indel counts
+
+        Args:
+            chromosome: chromosome name
+            start: start position
+            stop: stop position
+        """
         for i in range(start + 1, stop + 1):
             remove_site = '{0}:{1}'.format(chromosome, i)
             self.read_count_dict.pop(remove_site)
 
-    def flatten_base_metrics(self, base_key, bam_readcount_site, variant_site,
-                             prepend_string):
-        """ Renames the base metrics and flatten the data into the site level
+    def flatten_base_metrics(self, base_key, bam_readcount_site, variant_site, prepend_string):
+        """Renames the base metrics and flatten the data into the site level.
 
-        :param base_key (str): Key for the reference or variant
-        :param site (str): Site string
-        :param prepend_string (str): string to prepend the new keys
+        Args:
+            base_key: Key for the reference or variant
+            site: Site string
+            prepend_string: string to prepend the new keys
         """
 
         try:
             # Remove ref or var metrics so counts for other bases can be summed
-            self.read_count_dict[bam_readcount_site].setdefault('seen_base',
-                                                                []).append(
-                base_key)
-            for metric_key in \
-                    self.read_count_dict[bam_readcount_site]['bases'][
-                        base_key]:
+            self.read_count_dict[bam_readcount_site].setdefault('seen_base', []).append(base_key)
+            for metric_key in self.read_count_dict[bam_readcount_site]['bases'][base_key]:
                 new_key = '{0}_{1}'.format(prepend_string, metric_key)
                 self.read_count_dict.setdefault(variant_site, {})
                 self.read_count_dict[variant_site][new_key] = \
@@ -271,26 +256,20 @@ class ReadCount:
             # the dictionary assuming that the keyError was raised on
             # the ref call
             if bam_readcount_site not in self.read_count_dict:
-                self._add_zero_depth_readcount_to_dict(base_key,
-                                                       bam_readcount_site,
-                                                       variant_site,
-                                                       prepend_string)
+                self._add_zero_depth_readcount_to_dict(base_key, bam_readcount_site, variant_site, prepend_string)
             else:
                 # add all zero metrics for indels absent from count file
-                keys = ['{0}_{1}'.format(prepend_string, i) for i in
-                        BASE_METRICS]
+                keys = ['{0}_{1}'.format(prepend_string, i) for i in BASE_METRICS]
                 print(keys)
-                self.read_count_dict.setdefault(variant_site, {}).update(
-                    dict.fromkeys(keys, 0))
+                self.read_count_dict.setdefault(variant_site, {}).update(dict.fromkeys(keys, 0))
 
-    def _remove_duplicated_calls(self, bed_df):
-        """Removes calls with same coordinates but disagreeing calls
+    def _remove_duplicated_calls(self, bed_df: pd.DataFrame) -> pd.DataFrame:
+        """Removes calls with same coordinates but disagreeing calls.
 
-        Parameters:
-            bed_df (pandas.DataFrame): DataFrame of manual review calls
+        Args:
+            bed_df: DataFrame of manual review calls
         Returns:
-            bed_df (pandas.DataFrame): DataFram of manual review calls with
-                                       duplicates removed
+            bed_df: DataFrame of manual review calls with duplicates removed
         """
 
         duplicated_calls = bed_df[
@@ -305,10 +284,19 @@ class ReadCount:
         return bed_df.loc[bed_df[['chromosome', 'start', 'stop',
                                   'ref', 'var']].drop_duplicates().index]
 
-    def _add_zero_depth_readcount_to_dict(self, base_key, bam_readcount_site,
-                                          variant_site, prepend_string):
-        variant_site_search = re.search('(\w+):(\d+)[\w|-]+>[\w|-]+',
-                                        variant_site)
+    def _add_zero_depth_readcount_to_dict(self, base_key, bam_readcount_site, variant_site, prepend_string):
+        """
+
+        Args:
+            base_key:
+            bam_readcount_site:
+            variant_site:
+            prepend_string:
+
+        Returns:
+
+        """
+        variant_site_search = re.search('(\w+):(\d+)[\w|-]+>[\w|-]+', variant_site)
         chromosome = variant_site_search.group(1)
         position = variant_site_search.group(2)
         self.bam_readcount_keys.append(bam_readcount_site)
@@ -387,36 +375,21 @@ class ReadCount:
             'depth': 0,
             'position': position,
             'ref': base_key}
-        self.flatten_base_metrics(base_key, bam_readcount_site, variant_site,
-                                  prepend_string)
+        self.flatten_base_metrics(base_key, bam_readcount_site, variant_site, prepend_string)
 
 class PrepareData:
-    """Prepare data for classification or training from bam and manual review
-        files
+    """Prepare data for classification or training from bam and manual review files."""
 
-
-    """
-
-    def __init__(self, sample, bam, bed, ref, out_dir_path,
-                 skip_readcount=False):
-        """Assemble pandas.Dataframe of data
+    def __init__(self, sample, bam, bed, ref, out_dir_path, skip_readcount=False):
+        """Assemble pd.Dataframe of data
 
             Args:
-                samples_file_path (str): File path of tab-separated
-                                         file outlining the tumor bam path,
-                                         normal bam path, and manual review
-                                         sites file path (this should be a
-                                         one-based tsv file containing
-                                         chromosome, start, and stop),
-                                         boolean indicating a solid tumor or
-                                         liquid tumor, and reference fasta file
-                                          path
-                header (bool): True if header False otherwise.
-                out_dir_path (str): path for output directory
-                skip_readcount (bool): skip the read counting step by reading
-                                       in the read count files from a prior run
-                                       in the output directory.
+                samples_file_path: File path of tab-separated file outlining the tumor bam path, normal bam path, and manual review sites file path (this should be a one-based tsv file containing chromosome, start, and stop), boolean indicating a solid tumor or liquid tumor, and reference fasta file path
+                header: True if header False otherwise.
+                out_dir_path: path for output directory
+                skip_readcount: skip the read counting step by reading in the read count files from a prior run in the output directory.
         """
+
         self.sample = sample
         self.bam = bam
         self.bed = bed
@@ -431,16 +404,14 @@ class PrepareData:
         """Run bam-readcount on created sites file. Concatenate review calls.
 
             Args:
-                skip_readcount (bool): Skip the read counting step by reading
-                                       in the read count files from a prior run
-                                       in the output directory.
+                skip_readcount (bool): Skip the read counting step by reading in the read count files from a prior run in the output directory.
         """
+
         out_dir_path = os.path.join(self.out_dir_path, 'readcounts')
         if not os.path.exists(out_dir_path):
             os.makedirs(out_dir_path)
 
-        print('-----------------------------------------------------'
-                '\nStarting preprocessing\n')
+        print('-----------------------------------------------------\nStarting preprocessing\n')
 
         sites_file_path = os.path.join(out_dir_path, self.sample + '.sites')
         if not os.path.exists(sites_file_path):
@@ -451,28 +422,18 @@ class PrepareData:
             review = pd.read_csv(sites_file_path, sep='\t', index_col=None, header=None)
 
         print('Processing tumor bam file:\n\t{0}'.format(self.bam))
-        tumor_readcount_file_path = '{0}/{1}_tumor' \
-                                    '.readcounts'.format(out_dir_path,
-                                                            self.sample)
+        tumor_readcount_file_path = '{0}/{1}_tumor.readcounts'.format(out_dir_path, self.sample)
         if not skip_readcount:
-            os.system('bam-readcount -i -w 0 -l {0} -f {1} '
-                        '{2} > {3}'.format(sites_file_path, self.ref_file,
-                                           self.bam,
-                                           tumor_readcount_file_path))
+            os.system('bam-readcount -i -w 0 -l {0} -f {1} {2} > {3}'.format(sites_file_path, self.ref_file, self.bam, tumor_readcount_file_path))
 
         tumor_rc = ReadCount(tumor_readcount_file_path)
 
         tumor_data = tumor_rc.compute_variant_metrics(self.bed+'.one_based', 'tumor')
         individual_df = tumor_data
 
-        individual_df.index = (self.sample + '~' + individual_df.chromosome +
-                                ':' + individual_df.start.map(str) + '-' +
-                                individual_df.stop.map(str) +
-                                individual_df.ref + '>' +
-                                individual_df['var'])
+        individual_df.index = (self.sample + '~' + individual_df.chromosome + ':' + individual_df.start.map(str) + '-' + individual_df.stop.map(str) + individual_df.ref + '>' + individual_df['var'])
         self.training_data = pd.concat([self.training_data, individual_df])
-        self.training_data.drop(['chromosome', 'start', 'stop'],
-                                axis=1, inplace=True)
+        self.training_data.drop(['chromosome', 'start', 'stop'], axis=1, inplace=True)
 
     def _parse_bed_file(self, bed_file_path, sites_file_path, sample_name):
         manual_review = pd.read_csv(bed_file_path, sep='\t', header=None, index_col=None)
@@ -495,14 +456,9 @@ class PrepareData:
         manual_review = manual_review.apply(self._convert_one_based, axis=1)
         manual_review = manual_review.replace('', np.nan).dropna(how='all')
         manual_review.columns = header
-        manual_review[['chromosome', 'start', 'stop']].to_csv(sites_file_path,
-                                                              sep='\t',
-                                                              index=False,
-                                                              header=False)
-        manual_review.to_csv(bed_file_path+'.one_based',
-                             sep='\t', index=False, header=True)
+        manual_review[['chromosome', 'start', 'stop']].to_csv(sites_file_path, sep='\t', index=False, header=False)
+        manual_review.to_csv(bed_file_path+'.one_based', sep='\t', index=False, header=True)
         return manual_review
 
     def _convert_one_based(self, row):
-        return pd.Series(convert.coordinate_system('\t'.join(map(str, row.values)),
-                                                  'to_one_based').strip().split('\t'))
+        return pd.Series(convert.coordinate_system('\t'.join(map(str, row.values)), 'to_one_based').strip().split('\t'))
